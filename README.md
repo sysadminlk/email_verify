@@ -18,6 +18,7 @@ The script runs three stages, each only checking what survived the previous one:
 - [Quick start](#quick-start)
 - [How it decides valid / invalid / unknown](#how-it-decides-valid--invalid--unknown)
 - [Output files](#output-files)
+- [Sample run](#sample-run)
 - [All options](#all-options)
 - [Recipes](#recipes)
 - [Running on a VPS](#running-on-a-vps)
@@ -92,6 +93,85 @@ Extra flag columns on every row (informational, not a validity signal):
 
 A `summary.json` is also written every run: start/end time, duration, counts, how many
 emails were skipped via `--resume`.
+
+## Sample run
+
+Example `emails.txt` (a leading index/tab is fine, the script extracts the address):
+
+```
+1	jane.doe@example.com
+2	not-an-email
+3	john@totally-made-up-domain-xyz123.com
+4	sales@example.org
+5	random123@mailinator.com
+6	+weird@example.com
+```
+
+```bash
+python verify_emails.py --input emails.txt --smtp --sender you@yourdomain.com --log-file run.log
+```
+
+Console / `run.log` output:
+
+```
+2026-09-24 17:34:42 INFO Loaded 6 unique emails.
+2026-09-24 17:34:42 INFO Checking MX records for 4 unique domains...
+2026-09-24 17:34:44 INFO 4 emails have a domain that accepts mail.
+2026-09-24 17:34:44 INFO Probing 3 domains for catch-all behaviour (0 skipped as known-unverifiable providers)...
+2026-09-24 17:34:45 INFO Running SMTP checks: 2 connection(s) across 2 domains (3 addresses)...
+2026-09-24 17:34:46 INFO   [1/2 connections] example.com shard done (2 addresses)
+2026-09-24 17:34:46 INFO   [2/2 connections] example.org shard done (1 addresses)
+2026-09-24 17:34:46 INFO Done.
+2026-09-24 17:34:46 INFO   valid:   2  -> valid.csv
+2026-09-24 17:34:46 INFO   invalid: 2  -> invalid.csv
+2026-09-24 17:34:46 INFO   unknown: 2  -> unknown.csv  (couldn't be confirmed either way)
+2026-09-24 17:34:46 INFO   summary: summary.json
+```
+
+`valid.csv`:
+
+```
+email,domain,status_or_reason,role_based,disposable,risky_for_spreadsheet
+jane.doe@example.com,example.com,smtp_accepted,False,False,False
+sales@example.org,example.org,smtp_accepted,True,False,False
+```
+
+`invalid.csv`:
+
+```
+email,domain,status_or_reason,role_based,disposable,risky_for_spreadsheet
+not-an-email,,invalid_syntax,False,False,False
+john@totally-made-up-domain-xyz123.com,totally-made-up-domain-xyz123.com,no_mail_server_for_domain,False,False,False
+```
+
+`unknown.csv`:
+
+```
+email,domain,status_or_reason,role_based,disposable,risky_for_spreadsheet
+random123@mailinator.com,mailinator.com,catch_all_domain_cannot_verify_mailbox,False,True,False
++weird@example.com,example.com,greylisted_or_temporary_failure,False,False,True
+```
+
+`summary.json`:
+
+```json
+{
+  "started_at": "2026-09-24T12:04:42.938508+00:00",
+  "finished_at": "2026-09-24T12:04:46.201933+00:00",
+  "duration_seconds": 3.3,
+  "input_file": "emails.txt",
+  "smtp_check_enabled": true,
+  "unique_emails_loaded": 6,
+  "skipped_already_settled": 0,
+  "counts": {"valid": 2, "invalid": 2, "unknown": 2},
+  "outputs": {"valid": "valid.csv", "invalid": "invalid.csv", "unknown": "unknown.csv"}
+}
+```
+
+A few things to notice in that output:
+- `sales@example.org` is flagged `role_based=True` but still counted `valid` — the flag is informational, you decide whether to exclude it from a send.
+- `+weird@example.com` is flagged `risky_for_spreadsheet=True` because the local part starts with `+` — the address itself isn't touched, just watch it if you open the CSV in Excel.
+- `random123@mailinator.com` landed in `unknown.csv` because mailinator.com is catch-all, not because it's flagged `disposable=True` — the disposable flag is informational and never overrides the actual SMTP verdict.
 
 ## All options
 
