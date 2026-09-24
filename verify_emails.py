@@ -271,9 +271,14 @@ def open_smtp_session(host, sender_domain, timeout, use_starttls):
     EHLO -> (STARTTLS -> EHLO again) if the server offers it -> fall back to
     plain HELO only if the server doesn't understand EHLO at all.
     Raises on failure; returns a connected, ehlo'd smtplib.SMTP on success.
+
+    Must construct SMTP with the host in the same call rather than SMTP() + .connect()
+    separately: smtplib only sets the internal _host attribute (used as the TLS SNI
+    server_hostname by starttls()) inside __init__, so a bare .connect() call afterward
+    leaves it empty and starttls() fails with "server_hostname cannot be an empty string",
+    silently breaking every command after it.
     """
-    server = smtplib.SMTP(timeout=timeout)
-    server.connect(host, 25)
+    server = smtplib.SMTP(host, 25, timeout=timeout)
 
     code, _ = server.ehlo(sender_domain)
     if code < 200 or code >= 300:
