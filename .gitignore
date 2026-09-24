@@ -1,0 +1,11 @@
+# Real email list data - never commit actual addresses to this public repo.
+emails.txt
+*.csv
+*.log
+summary.json
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
